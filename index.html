@@ -8,8 +8,8 @@
 
     <style>
         body {
-            text-align: center;
             font-family: Arial, sans-serif;
+            text-align: center;
             background-color: #f0f8ff;
             padding: 20px;
         }
@@ -24,16 +24,15 @@
             font-size: 16px;
         }
 
-        #webcam-container,
-        #image-container {
+        #webcam-container, #image-container {
             margin-top: 20px;
         }
 
         #uploadedImage {
-            width: 300px;
-            height: 300px;
-            object-fit: contain;
-            border: 2px solid #333;
+            max-width: 300px;
+            max-height: 300px;
+            border: 2px solid #000;
+            display: none;
         }
 
         #label-container {
@@ -57,28 +56,28 @@
     <div id="webcam-container"></div>
 
     <div id="image-container">
-        <img id="uploadedImage" style="display:none;">
+        <img id="uploadedImage">
     </div>
 
     <div id="label-container"></div>
 
 <script>
 
-const URL = "./";
+const MODEL_URL = "./";
 
 let model, webcam;
-let modelLoaded = false;
+let isModelLoaded = false;
 
 async function loadModel() {
 
-    if (!modelLoaded) {
+    if (!isModelLoaded) {
 
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+        const modelURL = MODEL_URL + "model.json";
+        const metadataURL = MODEL_URL + "metadata.json";
 
         model = await tmImage.load(modelURL, metadataURL);
 
-        modelLoaded = true;
+        isModelLoaded = true;
     }
 }
 
@@ -93,24 +92,31 @@ async function startCamera() {
     await webcam.setup();
     await webcam.play();
 
-    document.getElementById("webcam-container").innerHTML = "";
-    document.getElementById("webcam-container").appendChild(webcam.canvas);
+    const webcamContainer =
+        document.getElementById("webcam-container");
+
+    webcamContainer.innerHTML = "";
+    webcamContainer.appendChild(webcam.canvas);
 
     window.requestAnimationFrame(loop);
 }
 
 async function loop() {
 
-    webcam.update();
+    if (webcam) {
+        webcam.update();
 
-    const prediction = await model.predict(webcam.canvas);
+        const prediction =
+            await model.predict(webcam.canvas);
 
-    showPrediction(prediction);
+        displayResult(prediction);
 
-    window.requestAnimationFrame(loop);
+        window.requestAnimationFrame(loop);
+    }
 }
 
-document.getElementById("imageUpload").addEventListener("change", async function(event) {
+document.getElementById("imageUpload")
+.addEventListener("change", async function(event) {
 
     await loadModel();
 
@@ -118,32 +124,37 @@ document.getElementById("imageUpload").addEventListener("change", async function
         webcam.stop();
     }
 
-    const image = document.getElementById("uploadedImage");
+    const image =
+        document.getElementById("uploadedImage");
 
-    image.src = URL.createObjectURL(event.target.files[0]);
+    image.src =
+        URL.createObjectURL(event.target.files[0]);
 
     image.style.display = "block";
 
     image.onload = async function() {
 
-        const prediction = await model.predict(image);
+        const prediction =
+            await model.predict(image);
 
-        showPrediction(prediction);
+        displayResult(prediction);
     };
 });
 
-function showPrediction(predictions) {
+function displayResult(predictions) {
 
-    let result = "";
+    let output = "";
 
     predictions.forEach(prediction => {
 
-        result += prediction.className + " : " +
-                  (prediction.probability * 100).toFixed(2) +
-                  "%<br>";
+        output += prediction.className +
+            " : " +
+            (prediction.probability * 100).toFixed(2)
+            + "%<br>";
     });
 
-    document.getElementById("label-container").innerHTML = result;
+    document.getElementById("label-container")
+        .innerHTML = output;
 }
 
 </script>
