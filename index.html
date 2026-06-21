@@ -10,28 +10,36 @@
         body {
             text-align: center;
             font-family: Arial, sans-serif;
-            margin-top: 30px;
+            background-color: #f0f8ff;
+            padding: 20px;
         }
 
         h1 {
             color: #0066cc;
         }
 
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
+        button, input[type=file] {
+            padding: 10px;
             margin: 10px;
+            font-size: 16px;
+        }
+
+        #webcam-container,
+        #image-container {
+            margin-top: 20px;
+        }
+
+        #uploadedImage {
+            width: 300px;
+            height: 300px;
+            object-fit: contain;
+            border: 2px solid #333;
         }
 
         #label-container {
             margin-top: 20px;
-            font-size: 20px;
-        }
-
-        #uploadedImage {
-            margin-top: 20px;
-            max-width: 300px;
-            max-height: 300px;
+            font-size: 22px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -40,17 +48,17 @@
 
     <h1>River Plastic Detection</h1>
 
-    <button onclick="init()">Start Camera</button>
+    <button onclick="startCamera()">Start Camera</button>
 
-    <br><br>
+    <br>
 
     <input type="file" id="imageUpload" accept="image/*">
 
-    <br><br>
-
     <div id="webcam-container"></div>
 
-    <img id="uploadedImage" />
+    <div id="image-container">
+        <img id="uploadedImage" style="display:none;">
+    </div>
 
     <div id="label-container"></div>
 
@@ -58,83 +66,85 @@
 
 const URL = "./";
 
-let model, webcam, labelContainer, maxPredictions;
+let model, webcam;
+let modelLoaded = false;
 
 async function loadModel() {
 
-    if (!model) {
+    if (!modelLoaded) {
+
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
 
         model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
 
-        labelContainer = document.getElementById("label-container");
-
-        for (let i = 0; i < maxPredictions; i++) {
-            labelContainer.appendChild(document.createElement("div"));
-        }
+        modelLoaded = true;
     }
 }
 
-async function init() {
+async function startCamera() {
 
     await loadModel();
+
+    document.getElementById("uploadedImage").style.display = "none";
 
     webcam = new tmImage.Webcam(300, 300, true);
 
     await webcam.setup();
     await webcam.play();
 
-    window.requestAnimationFrame(loop);
+    document.getElementById("webcam-container").innerHTML = "";
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
 
-    const container = document.getElementById("webcam-container");
-    container.innerHTML = "";
-    container.appendChild(webcam.canvas);
+    window.requestAnimationFrame(loop);
 }
 
 async function loop() {
-    webcam.update();
-    await predictWebcam();
-    window.requestAnimationFrame(loop);
-}
 
-async function predictWebcam() {
+    webcam.update();
 
     const prediction = await model.predict(webcam.canvas);
 
-    for (let i = 0; i < maxPredictions; i++) {
+    showPrediction(prediction);
 
-        const classPrediction =
-            prediction[i].className + ": " +
-            (prediction[i].probability * 100).toFixed(2) + "%";
-
-        labelContainer.childNodes[i].innerHTML = classPrediction;
-    }
+    window.requestAnimationFrame(loop);
 }
 
 document.getElementById("imageUpload").addEventListener("change", async function(event) {
 
     await loadModel();
 
+    if (webcam) {
+        webcam.stop();
+    }
+
     const image = document.getElementById("uploadedImage");
 
     image.src = URL.createObjectURL(event.target.files[0]);
 
-    image.onload = async function () {
+    image.style.display = "block";
+
+    image.onload = async function() {
 
         const prediction = await model.predict(image);
 
-        labelContainer.innerHTML = "";
-
-        prediction.forEach(p => {
-
-            labelContainer.innerHTML +=
-                p.className + ": " +
-                (p.probability * 100).toFixed(2) + "%<br>";
-        });
+        showPrediction(prediction);
     };
 });
+
+function showPrediction(predictions) {
+
+    let result = "";
+
+    predictions.forEach(prediction => {
+
+        result += prediction.className + " : " +
+                  (prediction.probability * 100).toFixed(2) +
+                  "%<br>";
+    });
+
+    document.getElementById("label-container").innerHTML = result;
+}
 
 </script>
 
